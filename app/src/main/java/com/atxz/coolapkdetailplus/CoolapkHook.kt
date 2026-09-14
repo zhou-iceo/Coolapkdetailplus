@@ -8,6 +8,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.ColorFilter
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PixelFormat
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
@@ -20,6 +21,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.PopupWindow
 import android.widget.TextView
+import androidx.core.graphics.PathParser
 import com.highcapable.yukihookapi.hook.entity.YukiBaseHooker
 import com.highcapable.yukihookapi.hook.type.android.ActivityClass
 import com.highcapable.yukihookapi.hook.type.android.DialogClass
@@ -307,58 +309,46 @@ object CoolapkHook : YukiBaseHooker() {
     }
 
     /**
-     * 自定义纯代码绘制的矢量放大镜图标 Drawable
+     * 来自 搜索.svg (ic_search_menu.xml) 的矢量放大镜图标 Drawable
      * 自动随当前主题（浅色/深色模式）字体色自适应，避免 emoji 产生的平台色差与视觉突兀感
      */
     private class SearchIconDrawable(private val iconColor: Int) : Drawable() {
-        private val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        private val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = iconColor
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
+            style = Paint.Style.FILL
         }
 
-        /**
-         * 绘制放大镜圆环镜片及 45 度圆角斜向手柄
-         */
+        private val svgPath: Path? = runCatching {
+            PathParser.createPathFromPathData(
+                "M948.48,833.92l-185.6,-183.68c-3.84,-3.84 -8.32,-6.4 -13.44,-7.68C801.28,580.48 832,501.76 832,416 832,221.44 674.56,64 480,64 285.44,64 128,221.44 128,416 128,610.56 285.44,768 480,768c85.76,0 163.84,-30.72 225.28,-81.28 1.92,4.48 4.48,8.96 8.32,12.8l185.6,183.68c14.08,13.44 35.84,13.44 49.92,0S962.56,847.36 948.48,833.92zM480,704C320.64,704 192,575.36 192,416 192,256.64 320.64,128 480,128 639.36,128 768,256.64 768,416 768,575.36 639.36,704 480,704z"
+            )
+        }.getOrNull()
+
         override fun draw(canvas: Canvas) {
             val b = bounds
-            val size = minOf(b.width(), b.height()).toFloat()
-            if (size <= 0) return
+            val width = b.width().toFloat()
+            val height = b.height().toFloat()
+            if (width <= 0 || height <= 0 || svgPath == null) return
 
-            strokePaint.strokeWidth = size * 0.11f
+            val saveCount = canvas.save()
+            canvas.translate(b.left.toFloat(), b.top.toFloat())
+            val scaleX = width / 1024f
+            val scaleY = height / 1024f
+            canvas.scale(scaleX, scaleY)
 
-            val cx = b.exactCenterX() - size * 0.08f
-            val cy = b.exactCenterY() - size * 0.08f
-            val r = size * 0.28f
-
-            canvas.drawCircle(cx, cy, r, strokePaint)
-
-            val angle = Math.toRadians(45.0)
-            val startX = cx + (r * Math.cos(angle)).toFloat()
-            val startY = cy + (r * Math.sin(angle)).toFloat()
-            val endX = cx + (size * 0.44f * Math.cos(angle)).toFloat()
-            val endY = cy + (size * 0.44f * Math.sin(angle)).toFloat()
-
-            canvas.drawLine(startX, startY, endX, endY, strokePaint)
+            canvas.drawPath(svgPath, fillPaint)
+            canvas.restoreToCount(saveCount)
         }
 
-        /**
-         * 设置图标透明度
-         */
         override fun setAlpha(alpha: Int) {
-            strokePaint.alpha = alpha
+            fillPaint.alpha = alpha
         }
 
-        /**
-         * 设置图标色彩滤镜
-         */
         override fun setColorFilter(colorFilter: ColorFilter?) {
-            strokePaint.colorFilter = colorFilter
+            fillPaint.colorFilter = colorFilter
         }
 
-        /**
-         * 获取图标不透明度类型
-         */
+        @Deprecated("Deprecated in Java", ReplaceWith("PixelFormat.TRANSLUCENT", "android.graphics.PixelFormat"))
         override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
     }
 
@@ -472,7 +462,7 @@ object CoolapkHook : YukiBaseHooker() {
             when {
                 txt == "复制" || txt.contains("复制内容") || txt.contains("复制链接") -> copyTv = tv
                 txt == "收藏" || txt.contains("收藏") -> favorTv = tv
-                txt == "编辑历史" || txt.contains("编辑历史") -> historyTv = tv
+                txt == "编辑历史" || txt.contains("编辑历史") || txt == "历史编辑" || txt.contains("历史编辑") || txt.contains("修改历史") -> historyTv = tv
                 txt == "举报" || txt.contains("举报") -> reportTv = tv
             }
         }
@@ -518,11 +508,11 @@ object CoolapkHook : YukiBaseHooker() {
                         val oldRvLp = rv.layoutParams
                         parentOfRv.removeView(rv)
 
-                        // 创建水平包装容器，使 RecyclerView 与【查找】处于同一水平行
+                        // 创建水平包装容器，使 RecyclerView 与【查找】处于同一水平行（靠左对齐，与下排菜单靠左边缘完全一致）
                         val rowWrapper = LinearLayout(activity).apply {
                             tag = "COOLAPK_SEARCH_ROW_WRAPPER"
                             orientation = LinearLayout.HORIZONTAL
-                            gravity = Gravity.CENTER_VERTICAL
+                            gravity = Gravity.TOP or Gravity.START
                             layoutParams = LinearLayout.LayoutParams(
                                 LinearLayout.LayoutParams.MATCH_PARENT,
                                 if (oldRvLp.height > 0) oldRvLp.height else ViewGroup.LayoutParams.WRAP_CONTENT
@@ -693,6 +683,26 @@ object CoolapkHook : YukiBaseHooker() {
     }
 
     /**
+     * 尝试从 View 及其背景提取主色彩
+     */
+    private fun extractBackgroundColor(view: View?): Int? {
+        if (view == null) return null
+        val bg = view.background ?: return null
+        if (bg is android.graphics.drawable.ColorDrawable) {
+            return bg.color
+        }
+        return runCatching {
+            val bitmap = android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            bg.setBounds(0, 0, 1, 1)
+            bg.draw(canvas)
+            val color = bitmap.getPixel(0, 0)
+            bitmap.recycle()
+            if (color != 0) color else null
+        }.getOrNull()
+    }
+
+    /**
      * 构建与酷安既有按钮（复制、收藏、举报）风格完全统一的水平列项（圆形图标在上，文字在下，带水波纹与主题自适应）
      */
     private fun buildSearchColumnItemView(
@@ -724,20 +734,23 @@ object CoolapkHook : YukiBaseHooker() {
         )
 
         val refIconView = findFirstImageView(refItemView)
-        val circleSize = if (refIconView != null && refIconView.width > 0) {
-            refIconView.width
-        } else {
-            dip2px(activity, 48f)
+        val circleSize = when {
+            refIconView != null && refIconView.width > 0 -> refIconView.width
+            refIconView?.layoutParams?.width != null && refIconView.layoutParams.width > 0 -> refIconView.layoutParams.width
+            refIconView?.parent is View && (refIconView.parent as View).width > 0 -> (refIconView.parent as View).width
+            refIconView?.parent is View && (refIconView.parent as View).layoutParams?.width != null && (refIconView.parent as View).layoutParams.width > 0 -> (refIconView.parent as View).layoutParams.width
+            else -> dip2px(activity, 48f)
         }
 
-        // 尝试克隆宿主原生的灰色圆圈背景 Drawable，以完美支持深色模式与原生质感
-        val clonedBg = runCatching {
-            refIconView?.background?.constantState?.newDrawable(activity.resources)?.mutate()
-        }.getOrNull()
+        // 提取宿主既有按钮的背景颜色，并强制设定为 GradientDrawable.OVAL（正圆形）
+        val isDarkMode = (activity.resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val nativeBgColor = extractBackgroundColor(refIconView)
+            ?: extractBackgroundColor(refIconView?.parent as? View)
+            ?: if (isDarkMode) Color.parseColor("#2C2C2C") else Color.parseColor("#F0F0F0")
 
-        val circleBg = clonedBg ?: GradientDrawable().apply {
+        val circleBg = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
-            setColor(Color.parseColor("#F5F5F5"))
+            setColor(nativeBgColor)
         }
 
         val iconContainer = FrameLayout(activity).apply {
@@ -747,10 +760,11 @@ object CoolapkHook : YukiBaseHooker() {
         val refIconLp = refIconView?.layoutParams as? ViewGroup.MarginLayoutParams
         val iconLp = LinearLayout.LayoutParams(circleSize, circleSize).apply {
             gravity = Gravity.CENTER_HORIZONTAL
-            if (refIconLp != null && refIconLp.topMargin > 0) {
+            if (refIconLp != null) {
                 topMargin = refIconLp.topMargin
+                bottomMargin = refIconLp.bottomMargin
             } else {
-                topMargin = dip2px(activity, 12f)
+                topMargin = 0
             }
         }
         iconContainer.layoutParams = iconLp
@@ -770,6 +784,7 @@ object CoolapkHook : YukiBaseHooker() {
         iconContainer.addView(iconImg)
 
         // 文本标签（100% 继承参考 TextView 的字号、字体与颜色）
+        val refTvLp = refTv.layoutParams as? ViewGroup.MarginLayoutParams
         val labelTv = TextView(activity).apply {
             text = "查找"
             setTextSize(TypedValue.COMPLEX_UNIT_PX, refTv.textSize)
@@ -780,11 +795,11 @@ object CoolapkHook : YukiBaseHooker() {
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                val refTvLp = refTv.layoutParams as? ViewGroup.MarginLayoutParams
-                if (refTvLp != null && refTvLp.topMargin > 0) {
+                if (refTvLp != null) {
                     topMargin = refTvLp.topMargin
+                    bottomMargin = refTvLp.bottomMargin
                 } else {
-                    topMargin = dip2px(activity, 6f)
+                    topMargin = dip2px(activity, 4f)
                 }
                 gravity = Gravity.CENTER_HORIZONTAL
             }

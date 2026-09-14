@@ -112,7 +112,7 @@ fun MiuixPluginAppScreen() {
             MiuixGroupCard {
                 MiuixInfoRow(
                     title = "模块版本",
-                    value = "v1.0 (1)"
+                    value = "v0.0.5"
                 )
 
                 MiuixDivider()
@@ -129,6 +129,13 @@ fun MiuixPluginAppScreen() {
                 MiuixInfoRow(
                     title = "API 版本",
                     value = "LibXposed API 102 / Yuki 1.3.2"
+                )
+
+                MiuixDivider()
+
+                MiuixInfoRow(
+                    title = "仓库地址",
+                    value = "git@github.com:zhou-iceo/Coolapkdetailplus.git"
                 )
             }
 
