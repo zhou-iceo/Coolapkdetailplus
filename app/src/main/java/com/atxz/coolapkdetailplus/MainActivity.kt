@@ -4,11 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +45,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -135,7 +139,15 @@ fun MiuixPluginAppScreen() {
 
                 MiuixInfoRow(
                     title = "仓库地址",
-                    value = "git@github.com:zhou-iceo/Coolapkdetailplus.git"
+                    value = "git@github.com:zhou-iceo/Coolapkdetailplus.git",
+                    onClick = {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/zhou-iceo/Coolapkdetailplus"))
+                            context.startActivity(intent)
+                        } catch (_: Throwable) {
+                            // Ignore
+                        }
+                    }
                 )
             }
 
@@ -175,11 +187,13 @@ fun MiuixGroupCard(
 fun MiuixInfoRow(
     title: String,
     value: String? = null,
+    onClick: (() -> Unit)? = null,
     valueWidget: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(enabled = onClick != null) { onClick?.invoke() }
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -191,14 +205,25 @@ fun MiuixInfoRow(
             color = Color(0xFF1C1C1E)
         )
 
+        Spacer(modifier = Modifier.width(12.dp))
+
         if (valueWidget != null) {
-            valueWidget()
+            Box(
+                modifier = Modifier.weight(1f, fill = false),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                valueWidget()
+            }
         } else if (value != null) {
             Text(
                 text = value,
-                fontSize = 15.sp,
+                fontSize = if (value.length > 25) 12.sp else 15.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color(0xFF8E8E93)
+                color = if (onClick != null) Color(0xFF007AFF) else Color(0xFF8E8E93),
+                textDecoration = if (onClick != null) TextDecoration.Underline else TextDecoration.None,
+                textAlign = TextAlign.End,
+                lineHeight = 16.sp,
+                modifier = Modifier.weight(1f, fill = false)
             )
         }
     }
